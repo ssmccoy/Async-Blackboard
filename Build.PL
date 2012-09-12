@@ -3,11 +3,10 @@
 use Module::Build;
 
 my $build = Module::Build->new(
-    module_name  => "AnyEvent::Blackboard",
-    version_from => "AnyEvent::Blackboard",
+    module_name  => "Async::Blackboard",
+    version_from => "Async::Blackboard",
 
     requires     => {
-        "AnyEvent"     => 0,
         "Mouse"        => 0,
         "Scalar::Util" => 0,
     },

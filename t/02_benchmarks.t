@@ -4,7 +4,7 @@ use strict;
 use warnings FATAL => "all";
 use Test::More;
 use Benchmark qw( :all );
-use AnyEvent::Blackboard;
+use Async::Blackboard;
 
 =head1 TESTS
 
@@ -15,14 +15,14 @@ Collection of benchmark tests.
 =item Dispatch rate test.
 
 A test which validates the rate of dispatch is greater than 30,000/s.  The goal
-being to ensure that L<AnyEvent::Blackboard> is never particularly slow at
+being to ensure that L<Async::Blackboard> is never particularly slow at
 calculating constraints for dispatching or at cloning - cloning being
 particularly important for most use cases.
 
 =cut
 
 
-my $blackboard = AnyEvent::Blackboard->build(
+my $blackboard = Async::Blackboard->build(
     watch => [ test => \&pass ]
 );
 

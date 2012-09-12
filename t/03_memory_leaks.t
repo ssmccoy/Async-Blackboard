@@ -3,7 +3,7 @@
 use strict;
 use warnings FATAL => "all";
 use EV;
-use AnyEvent::Blackboard;
+use Async::Blackboard;
 use BSD::Resource;
 use Devel::Leak;
 
@@ -47,7 +47,7 @@ package okayer {
 
 sub run_extensive_tests {
     {
-        my $blackboard = AnyEvent::Blackboard->new();
+        my $blackboard = Async::Blackboard->new();
         my $okayer     = okayer->new(
             foo => "foo",
             bar => "bar",
@@ -67,76 +67,7 @@ sub run_extensive_tests {
     }
 
     {
-        my $blackboard = AnyEvent::Blackboard->new(default_timeout => 0.02);
-
-        my $condvar = AnyEvent->condvar;
-
-        $condvar->begin;
-
-        $blackboard->watch(foo => sub {
-                my ($foo) = @_;
-
-                !defined $foo or die "foo should be undefined as default";
-
-                $condvar->end;
-            });
-
-        $condvar->recv;
-
-        $blackboard->has("foo") or die "foo should exist";
-    }
-
-    {
-        my $blackboard = AnyEvent::Blackboard->new();
-
-        my $condvar = AnyEvent->condvar;
-
-        $condvar->begin;
-
-        $blackboard->timeout(0.01, foo => "default");
-
-        $blackboard->watch(foo => sub {
-                my ($foo) = @_;
-
-                $foo eq "default" or die "foo should be defined as default";
-
-                $condvar->end;
-            });
-
-        $condvar->recv;
-
-        $blackboard->has("foo") or die "foo should be defined";
-    }
-
-    {
-        my $blackboard = AnyEvent::Blackboard->new();
-
-        my $condvar = AnyEvent->condvar;
-
-        $condvar->begin;
-
-        $blackboard->timeout(0.01, foo => "default");
-
-        $blackboard->watch(foo => sub {
-                my ($foo) = @_;
-
-                $foo eq "provided" or die "foo should be defined as provided";
-
-                $condvar->end;
-            });
-
-        $blackboard->put(foo => "provided");
-
-        $condvar->recv;
-
-        $blackboard->has("foo") or die "foo should be defined";
-
-        $blackboard->clear;
-        $blackboard->hangup;
-    }
-
-    {
-        my $blackboard = AnyEvent::Blackboard->new();
+        my $blackboard = Async::Blackboard->new();
 
         $blackboard->put(key => "value");
 
@@ -146,7 +77,7 @@ sub run_extensive_tests {
         "\$blackboard and \$clone shall both have \"key\"";
     }
     {
-        my $blackboard = AnyEvent::Blackboard->new();
+        my $blackboard = Async::Blackboard->new();
 
         my $value = "test";
 
@@ -156,7 +87,7 @@ sub run_extensive_tests {
     }
 
     {
-        my $blackboard = AnyEvent::Blackboard->build(
+        my $blackboard = Async::Blackboard->build(
             watchers => [
                 [qw( foo )] => sub { shift eq 1 or die "foo" },
                 [qw( bar )] => sub { shift eq 1 or die "bar" },
@@ -174,7 +105,7 @@ sub run_extensive_tests {
 
     {
         my $i = 0;
-        my $blackboard = AnyEvent::Blackboard->build(
+        my $blackboard = Async::Blackboard->build(
             watchers => [
                 foo => sub { shift eq $i or die "foo" },
             ],
@@ -192,7 +123,7 @@ sub run_extensive_tests {
     {
         my $i = 0;
 
-        my $blackboard = AnyEvent::Blackboard->build(
+        my $blackboard = Async::Blackboard->build(
             watchers => [
                 foo => sub { shift eq $i or die "foo" },
             ],
@@ -206,7 +137,7 @@ sub run_extensive_tests {
     }
 
     {
-        my $blackboard = AnyEvent::Blackboard->new;
+        my $blackboard = Async::Blackboard->new;
 
         $blackboard->watch(foo => sub {
                 my ($blackboard) = @_;
@@ -224,7 +155,7 @@ sub run_extensive_tests {
     }
 
     {
-        my $blackboard = AnyEvent::Blackboard->new();
+        my $blackboard = Async::Blackboard->new();
 
         $blackboard->watch(foo => sub { $blackboard->hangup });
         $blackboard->watch(foo => sub { die "Expected hangup" });
@@ -238,7 +169,7 @@ sub run_extensive_tests {
     }
 
     {
-        my $blackboard = AnyEvent::Blackboard->new();
+        my $blackboard = Async::Blackboard->new();
 
         $blackboard->put(blackboard => $blackboard);
         $blackboard->weaken("blackboard");

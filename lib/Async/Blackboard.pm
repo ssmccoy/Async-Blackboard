@@ -1,12 +1,12 @@
-package AnyEvent::Blackboard;
+package Async::Blackboard;
 
 =head1 NAME
 
-AnyEvent::Blackboard - A simple blackboard database and dispatcher.
+Async::Blackboard - A simple blackboard database and dispatcher.
 
 =head1 SYNOPSIS
 
-  my $blackboard = AnyEvent::Blackboard->new();
+  my $blackboard = Async::Blackboard->new();
 
   $blackboard->watch([qw( foo bar )], [ $object, "found_foobar" ]);
   $blackboard->watch(foo => [ $object, "found_foo" ]);
@@ -48,7 +48,6 @@ defined in a central place.
 use strict;
 use warnings FATAL => "all";
 use Mouse;
-use AnyEvent;
 use Scalar::Util ();
 
 our $VERSION = 0.3.4;
@@ -89,18 +88,6 @@ has _hangup => (
     default  => 0
 );
 
-=item default_timeout -> Num
-
-Default timeout in (optionally fractional) seconds.
-
-=cut
-
-has default_timeout => (
-    is         => "ro",
-    isa        => "Num",
-    default    => 0,
-);
-
 =back
 
 =cut
@@ -109,7 +96,7 @@ no Mouse;
 
 =head1 CONSTRUCTORS
 
-AnyEvent::Blackboard includes a static builder method for constructing
+Async::Blackboard includes a static builder method for constructing
 prototype blackboards using concise syntax.  The is should typically be used
 whenever describing a workflow in detail prior to use (and then cloning the
 blackboard) is the desired usecase.
@@ -127,13 +114,13 @@ array references, with the keys specifying the method to call and the array
 reference specifying the argument list.  This is a convenience method which is
 short hand explained by the following example:
 
-    my $blackboard = AnyEvent::Blackboard->new();
+    my $blackboard = Async::Blackboard->new();
 
     $blackboard->watch(@$watchers);
     $blackboard->put(@$values);
 
     # This is equivalent to
-    my $blackboard = AnyEvent::Blackboard->build(
+    my $blackboard = Async::Blackboard->build(
         watchers => $watchers,
         values   => $values
     );
@@ -242,8 +229,6 @@ sub _watch {
 sub watch {
     my ($self, @args) = @_;
 
-    my $default_timeout = $self->default_timeout;
-
     while (@args) {
         my ($keys, $watcher) = splice @args, 0, 2;
 
@@ -252,12 +237,6 @@ sub watch {
         }
 
         $self->_watch($keys, $watcher);
-
-        if ($default_timeout) {
-            for my $key (@$keys) {
-                $self->timeout($default_timeout, $key);
-            }
-        }
     }
 }
 
@@ -417,30 +396,6 @@ sub clear {
     $self->_objects({});
 }
 
-=item timeout SECONDS, [ KEY, [, DEFAULT ] ]
-
-Set a timer for N seconds to provide "default" value as a value, defaults to
-`undef`.  This can be used to ensure that blackboard workflows do not reach a
-dead-end if a required value is difficult to obtain.
-
-=cut
-
-sub timeout {
-    my ($self, $seconds, $key, $default) = @_;
-
-    unless ($self->has($key)) {
-        my $guard = AnyEvent->timer(
-            after => $seconds,
-            cb    => sub {
-                $self->put($key => $default) unless $self->has($key);
-            }
-        );
-
-        # Cancel the timer if we find the object first (otherwise this is a NOOP).
-        $self->_watch([ $key ], sub { undef $guard });
-    }
-}
-
 =item hangup
 
 Clear all watchers, and stop accepting new values on the blackboard.
@@ -456,6 +411,18 @@ sub hangup {
     $self->_hangup(1);
 }
 
+=item watched
+
+Return a list of all keys currently being watched.
+
+=cut
+
+sub watched {
+    my ($self) = @_;
+
+    return keys %{ $self->_interests };
+}
+
 =item clone
 
 Create a clone of this blackboard.  This will not dispatch any events, even if
@@ -468,29 +435,18 @@ sub clone {
 
     my $class = ref $self || __PACKAGE__;
 
-    my $objects   = { %{ $self->_objects } };
-    my $watchers  = { %{ $self->_watchers } };
-    my $interests = { %{ $self->_interests } };
+    my $objects   = { %{ $self->{_objects}   } };
+    my $watchers  = { %{ $self->{_watchers}  } };
+    my $interests = { %{ $self->{_interests} } };
 
     $interests->{$_} = [ @{ $interests->{$_} } ] for keys %$interests;
     $watchers->{$_}  = [ @{ $watchers->{$_}  } ] for keys %$watchers;
-
-    my $default_timeout = $self->default_timeout;
 
     my $clone = $class->new(
         _objects        => $objects,
         _watchers       => $watchers,
         _interests      => $interests,
-        default_timeout => $default_timeout,
     );
-
-    # Add timeouts for all current watcher interests.  The timeout method
-    # ignores keys that are already defined.
-    if ($default_timeout) {
-        for my $key (keys %$interests) {
-            $clone->timeout($default_timeout, $key);
-        }
-    }
 
     return $clone;
 }

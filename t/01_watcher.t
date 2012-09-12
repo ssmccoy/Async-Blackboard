@@ -3,8 +3,7 @@
 use strict;
 use warnings;
 use Test::More;
-use EV;
-use AnyEvent::Blackboard;
+use Async::Blackboard;
 
 no warnings "redefine";
 package okayer {
@@ -35,8 +34,8 @@ package okayer {
     }
 }
 
-isa_ok(AnyEvent::Blackboard->new(), "AnyEvent::Blackboard",
-    "AnyEvent::Blackboard constructor");
+isa_ok(Async::Blackboard->new(), "Async::Blackboard",
+    "Async::Blackboard constructor");
 
 =head1 TESTS
 
@@ -51,7 +50,7 @@ Add chains of watchers and validate they are dispatched correctly.
 subtest "Add Watcher" => sub {
     plan tests => 6;
 
-    my $blackboard = AnyEvent::Blackboard->new();
+    my $blackboard = Async::Blackboard->new();
     my $okayer     = okayer->new(
         foo => "foo",
         bar => "bar",
@@ -80,7 +79,7 @@ that already are published to the blackboard.
 subtest "Watching for published values." => sub {
     plan tests => 3;
 
-    my $blackboard = AnyEvent::Blackboard->new();
+    my $blackboard = Async::Blackboard->new();
     my $okayer     = okayer->new(
         foo => "foo",
         bar => "bar",
@@ -95,99 +94,6 @@ subtest "Watching for published values." => sub {
 };
 
 
-=item Default Timeout
-
-Time out all values by diving into the AnyEvent event loop without putting down
-any events.
-
-=cut
-
-subtest "Default Timeout" => sub {
-    my $blackboard = AnyEvent::Blackboard->new(default_timeout => 0.02);
-
-    my $condvar = AnyEvent->condvar;
-
-    $condvar->begin;
-
-    $blackboard->watch(foo => sub {
-            my ($foo) = @_;
-
-            ok !defined $foo, "foo should be undefined as default";
-
-            $condvar->end;
-        });
-
-    $condvar->recv;
-
-    ok $blackboard->has("foo"), "foo should exist";
-
-    done_testing;
-};
-
-=item Timeout
-
-Timeotu a specific key with a default value.
-
-=cut
-
-subtest "Timeout" => sub {
-    plan tests => 2;
-
-    my $blackboard = AnyEvent::Blackboard->new();
-
-    my $condvar = AnyEvent->condvar;
-
-    $condvar->begin;
-
-    $blackboard->timeout(0.01, foo => "default");
-
-    $blackboard->watch(foo => sub {
-            my ($foo) = @_;
-
-            ok $foo eq "default", "foo should be defined as default";
-
-            $condvar->end;
-        });
-
-    $condvar->recv;
-
-    ok $blackboard->has("foo"), "foo should be defined";
-};
-
-=item Timeout Canceled
-
-Verify that timeouts result in no event when a value was provided, and that
-it's the value that the is available not the undef provided by default by
-timeouts.
-
-=cut
-
-subtest "Timeout Canceled" => sub {
-    my $blackboard = AnyEvent::Blackboard->new();
-
-    my $condvar = AnyEvent->condvar;
-
-    $condvar->begin;
-
-    $blackboard->timeout(0.01, foo => "default");
-
-    $blackboard->watch(foo => sub {
-            my ($foo) = @_;
-
-            ok $foo eq "provided", "foo should be defined as provided";
-
-            $condvar->end;
-        });
-
-    $blackboard->put(foo => "provided");
-
-    $condvar->recv;
-
-    ok $blackboard->has("foo"), "foo should be defined";
-
-    done_testing;
-};
-
 =item Clone
 
 Clone the blackboard and make sure it retains its default values.
@@ -195,7 +101,7 @@ Clone the blackboard and make sure it retains its default values.
 =cut
 
 subtest "Clone" => sub {
-    my $blackboard = AnyEvent::Blackboard->new();
+    my $blackboard = Async::Blackboard->new();
 
     $blackboard->put(key => "value");
 
@@ -214,7 +120,7 @@ Fetch a value from the blackboard without an event.
 =cut
 
 subtest "Get" => sub {
-    my $blackboard = AnyEvent::Blackboard->new();
+    my $blackboard = Async::Blackboard->new();
 
     my $value = "test";
 
@@ -234,7 +140,7 @@ Test the blackboard factory method and verify that hangup results no no events.
 subtest "Constructor, Hangup" => sub {
     plan tests => 2;
 
-    my $blackboard = AnyEvent::Blackboard->build(
+    my $blackboard = Async::Blackboard->build(
         watchers => [
             [qw( foo )] => sub { is(shift, 1, "foo") },
             [qw( bar )] => sub { is(shift, 1, "bar") },
@@ -260,7 +166,7 @@ subtest "Remove Test" => sub {
     plan tests => 3;
 
     my $i = 0;
-    my $blackboard = AnyEvent::Blackboard->build(
+    my $blackboard = Async::Blackboard->build(
         watchers => [
             foo => sub { is(shift, $i, "foo") },
         ],
@@ -288,7 +194,7 @@ subtest "Replace" => sub {
 
     my $i = 0;
 
-    my $blackboard = AnyEvent::Blackboard->build(
+    my $blackboard = Async::Blackboard->build(
         watchers => [
             foo => sub { is(shift, $i, "foo") },
         ],
@@ -311,7 +217,7 @@ and never creates a duplicate-dispatch condition.
 subtest "Reentrant put" => sub {
     plan tests => 2;
 
-    my $blackboard = AnyEvent::Blackboard->new;
+    my $blackboard = Async::Blackboard->new;
 
     $blackboard->watch(foo => sub {
             my ($blackboard) = @_;
@@ -335,7 +241,7 @@ further dispatching occurs.
 =cut
 
 subtest "Red herring" => sub {
-    my $blackboard = AnyEvent::Blackboard->new();
+    my $blackboard = Async::Blackboard->new();
 
     $blackboard->watch(foo => sub { $blackboard->hangup });
     $blackboard->watch(foo => sub { fail "Expected hangup" });
