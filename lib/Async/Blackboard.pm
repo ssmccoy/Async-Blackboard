@@ -50,7 +50,7 @@ use warnings FATAL => "all";
 use Mouse;
 use Scalar::Util ();
 
-our $VERSION = 0.3.4;
+our $VERSION = 0.3.6;
 
 =head1 ATTRIBUTES
 
