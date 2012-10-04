@@ -254,6 +254,26 @@ subtest "Red herring" => sub {
     done_testing;
 };
 
+=item watched and watchers methods
+
+Simple API tests proving the watched and watchers methods work as expected.
+
+=cut
+
+subtest "watched and watchers methods" => sub {
+    my $blackboard = Async::Blackboard->new();
+
+    my ($key, $watcher) = ("foo", sub {});
+
+    $blackboard->watch($key, $watcher);
+
+    is +($blackboard->watched)[0], $key,
+    "Expected watched keys are \"watched\"";
+
+    is +($blackboard->watchers($key))[0], $watcher,
+    "Expected watchers to match";
+};
+
 =back
 
 =cut

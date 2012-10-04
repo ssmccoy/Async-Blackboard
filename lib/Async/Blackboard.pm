@@ -50,7 +50,7 @@ use warnings FATAL => "all";
 use Mouse;
 use Scalar::Util ();
 
-our $VERSION = 0.3.6;
+our $VERSION = 0.3.7;
 
 =head1 ATTRIBUTES
 
@@ -420,7 +420,7 @@ Return a list of all keys currently being watched.
 sub watched {
     my ($self) = @_;
 
-    return keys %{ $self->_interests };
+    return keys %{ $self->_watchers };
 }
 
 =item clone
