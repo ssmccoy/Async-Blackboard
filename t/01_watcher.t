@@ -249,7 +249,7 @@ subtest "Red herring" => sub {
     $blackboard->put(foo => 1);
 
     # XXX This should probably move _hangup to a public-like-named method.
-    ok $blackboard->_hangup, "Blackboard was hung up";
+    ok $blackboard->hungup, "Blackboard was hung up";
 
     done_testing;
 };

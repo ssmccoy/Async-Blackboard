@@ -162,8 +162,7 @@ sub run_extensive_tests {
 
         $blackboard->put(foo => 1);
 
-        # XXX This should probably move _hangup to a public-like-named method.
-        $blackboard->_hangup or die "Blackboard was hung up";
+        $blackboard->hungup or die "Blackboard was hung up";
 
         $blackboard->hangup;
     }

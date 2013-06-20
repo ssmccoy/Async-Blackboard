@@ -24,84 +24,63 @@ Async::Blackboard - A simple blackboard database and dispatcher.
 
   $blackboard->put(foo => "Another dispatch");
 
-  # Order of the following is undefined:
+  # Order of the following is undefined, but both are called:
   #
-  # $object->found_foo("Future dispatch") is called
-  # $object->found_foobar("Future Dispatch", "Another dispatch") is called
+  # $object->found_foo("Future dispatch")
+  # $object->found_foobar("Future Dispatch", "Another dispatch")
 
   $blackboard->hangup;
 
-=head1 RATIONALE
+=head1 DESCRIPTION
 
-Concurrent applications can often do one or more thing at a time while
-"waiting" for a response from a given service.  Conversely, sometimes
-applications cannot dispatch all requests until certain data elements are
-present, some of which may require lookups from other services.  Maintaining
-these data-dependencices in a decentralized fashion can eventually lead to
-disparity in the control of a workflow, and possibly missed opportunities for
-optimizing parallelism.  This module attempts to address this design issue by
-allowing the data dependencies and subsequent workflow to be descriptively
-defined in a central place.
+Async::Blackboard provides a mechanism for describing the a parallizable
+workflow as a series of merge points.  An instance of a given workflow is
+associated with a blackboard, which might be cloned from a prototype
+blackboard.  The blackboard is a key value store which contains the data
+necessary to complete the task in question.
+
+The description of the workflow is in the form of a type of event listener,
+which is notified when values are associated with a given set of keys.  Once
+values have been published to the blackboard for all of the keys a given
+listener is interested in, the listener is invoked given the values.  That
+listener then has the opportunity to provide more values.  Used in an
+asynchornous I/O bound application, this allows the application workflow to be
+intrinsically optimized for parallelism.
 
 =cut
 
 use strict;
 use warnings FATAL => "all";
-use Mouse;
+use Carp qw( confess );
 use Scalar::Util ();
 
 our $VERSION = 0.3.7;
 
-=head1 ATTRIBUTES
-
-=over 4
-
-=cut
-
-# The _objects present in this blackboard instance.
-has _objects   => (
-    is      => "rw",
-    isa     => "HashRef[Any]",
-    default => sub { {} }
-);
-
-# A hash reference of callbacks for each watcher, with the key for the watcher
-# as its key.
-has _watchers  => (
-    is      => "rw",
-    isa     => "HashRef[ArrayRef[CodeRef]]",
-    default => sub { {} }
-);
-
-# A hash table with which has each watcher as a key, and array reference to an
-# array of interested keys as a value.
-has _interests => (
-    is      => "rw",
-    isa     => "HashRef[ArrayRef[Str]]",
-    default => sub { {} }
-);
-
-# The hangup flag.
-has _hangup => (
-    is       => "rw",
-    isa      => "Bool",
-    default  => 0
-);
-
-=back
-
-=cut
-
-no Mouse;
-
 =head1 CONSTRUCTORS
 
-Async::Blackboard includes a static builder method for constructing
-prototype blackboards using concise syntax.  The is should typically be used
-whenever describing a workflow in detail prior to use (and then cloning the
-blackboard) is the desired usecase.
-
 =over 4
+
+=item new
+
+The new constructor takes no arguments.  If you wish to initialize a blackboard
+which is prepopulated, try using the ``build'' constructor, or cloning a
+blackboard in a partially run state using the ``clone'' method.
+
+This is done to maintain the guarantee that each listener is notifed once and
+only once upon its dependencies being satisifed.
+
+=cut
+
+sub new {
+    my ($class) = @_;
+
+    bless {
+        -watchers  => {},
+        -interests => {},
+        -objects   => {},
+        -hungup    => 0,
+    }, $class;
+}
 
 =item build watchers => [ ... ]
 
@@ -127,7 +106,6 @@ short hand explained by the following example:
 
 =cut
 
-# This is now a legacy thing, on a one month old component...good job.
 sub build {
     confess "Build requires a balanced list of arguments" unless @_ % 2;
 
@@ -149,6 +127,15 @@ sub build {
 
 =over 4
 
+=item hungup
+
+Determine whether or not the blackboard has been hung up.  A blackboard which
+has been hung up will stop accepting values and release all watcher references.
+
+=cut
+
+sub hungup { shift->{-hungup} }
+
 =item has KEY
 
 Returns true if the blackboard has a value for the given key, false otherwise.
@@ -158,9 +145,55 @@ Returns true if the blackboard has a value for the given key, false otherwise.
 sub has {
     my ($self, $key) = @_;
 
-    return exists $self->_objects->{$key};
+    return exists $self->{-objects}->{$key};
 }
 
+=item get KEY [, KEY .. ]
+
+Fetch the value of a key.  If given a list of keys and in list context, return
+the value of each key supplied as a list.
+
+=cut
+
+sub get {
+    my ($self, @keys) = @_;
+
+    if (@keys > 1 && wantarray) {
+        return map $self->{-objects}->{$_}, @keys;
+    }
+    else {
+        return $self->{-objects}->{$keys[0]};
+    }
+}
+
+=item watcher KEY
+
+=item watcher KEYS
+
+Given a key or an array reference of keys, return all watchers interested in
+the given key.
+
+=cut
+
+sub watchers {
+    my ($self, $keys) = @_;
+
+    $keys = [ $keys ] unless ref $keys;
+
+    return map @{ $self->{-watchers}->{$_} }, @$keys;
+}
+
+=item watched
+
+Return a list of all keys currently being watched.
+
+=cut
+
+sub watched {
+    my ($self) = @_;
+
+    return keys %{ $self->{-watchers} };
+}
 
 =item watch KEYS, WATCHER
 
@@ -193,7 +226,7 @@ sub _callback {
 sub _can_dispatch {
     my ($self, $watcher) = @_;
 
-    my $interests = $self->_interests->{$watcher};
+    my $interests = $self->{-interests}->{$watcher};
 
     return @$interests == grep $self->has($_), @$interests;
 }
@@ -202,11 +235,11 @@ sub _can_dispatch {
 sub _dispatch {
     my ($self, $watcher) = @_;
 
-    my $interests = $self->_interests->{$watcher};
+    my $interests = $self->{-interests}->{$watcher};
 
     # Determine if all _interests for this watcher have defined keys (some
     # kind of value, including undef).
-    $watcher->(@{ $self->_objects }{@$interests});
+    $watcher->(@{ $self->{-objects} }{@$interests});
 }
 
 # Add the actual listener.
@@ -220,10 +253,10 @@ sub _watch {
     }
 
     for my $key (@$keys) {
-        push @{ $self->_watchers->{$key} ||= [] }, $watcher;
+        push @{ $self->{-watchers}->{$key} ||= [] }, $watcher;
     }
 
-    $self->_interests->{$watcher} = $keys;
+    $self->{-interests}->{$watcher} = $keys;
 
     $self->_dispatch($watcher) if $self->_can_dispatch($watcher);
 }
@@ -242,38 +275,10 @@ sub watch {
     }
 }
 
-=item watcher KEY
-
-=item watcher KEYS
-
-Given a key or an array reference of keys, return all watchers interested in
-the given key.
-
-=cut
-
-sub watchers {
-    my ($self, $keys) = @_;
-
-    $keys = [ $keys ] unless ref $keys;
-
-    my @results;
-
-    push @results, @{ $self->_watchers->{$_} } for @$keys;
-
-    return @results;
-}
-
-=item found KEY
-
-Notify any watchers of a key that it has been found, if all of their other
-_interests have been found.  This method is usually not invoked by the client.
-
-=cut
-
-sub found {
+sub _found {
     my ($self, $key) = @_;
 
-    my $watchers = $self->_watchers->{$key};
+    my $watchers = $self->{-watchers}->{$key};
     my @ready_watchers = grep $self->_can_dispatch($_), @$watchers;
 
     for my $watcher (@ready_watchers)
@@ -281,7 +286,7 @@ sub found {
         $self->_dispatch($watcher);
 
         # Break out of the loop if hangup was invoked during dispatching.
-        last if $self->_hangup;
+        last if $self->hungup;
     }
 }
 
@@ -290,9 +295,6 @@ sub found {
 Put the given keys in the blackboard and notify all watchers of those keys that
 the objects have been found, if and only if the value has not already been
 placed in the blackboard.
-
-The `found` method is invoked for each key, as the key is added to the
-blackboard.
 
 =cut
 
@@ -305,10 +307,10 @@ sub put {
         # Unfortunately, because this API was built this API to accept multiple
         # values in a single method invocation, it has to check the value of
         # hangup before every dispatch for hangup to work properly.
-        unless ($self->_hangup) {
-            $self->_objects->{$key} = $found{$key};
+        unless ($self->hungup) {
+            $self->{-objects}->{$key} = $found{$key};
 
-            $self->found($key);
+            $self->_found($key);
         }
     }
 }
@@ -326,7 +328,7 @@ weaken the value reference to the value associated with the key.
 sub weaken {
     my ($self, $key) = @_;
 
-    Scalar::Util::weaken $self->_objects->{$key};
+    Scalar::Util::weaken $self->{-objects}->{$key};
 }
 
 =item delete KEY [, KEY ...]
@@ -340,7 +342,7 @@ removed but they will be re-notified when a new value is provided.
 sub remove {
     my ($self, @keys) = @_;
 
-    delete @{$self->_objects}{@keys};
+    delete @{$self->{-objects}}{@keys};
 }
 
 =item replace KEY, VALUE [, KEY, VALUE .. ]
@@ -362,28 +364,10 @@ sub replace {
     for my $key (keys %found) {
         push @new_keys, $key unless $self->has($key);
 
-        $self->_objects->{$key} = $found{$key};
+        $self->{-objects}->{$key} = $found{$key};
     }
 
-    $self->found($_) for @new_keys;
-}
-
-=item get KEY [, KEY .. ]
-
-Fetch the value of a key.  If given a list of keys and in list context, return
-the value of each key supplied as a list.
-
-=cut
-
-sub get {
-    my ($self, @keys) = @_;
-
-    if (@keys > 1 && wantarray) {
-        return map $self->_objects->{$_}, @keys;
-    }
-    else {
-        return $self->_objects->{$keys[0]};
-    }
+    $self->_found($_) for @new_keys;
 }
 
 =item clear
@@ -395,7 +379,7 @@ Clear the blackboard of all values.
 sub clear {
     my ($self) = @_;
 
-    $self->_objects({});
+    $self->{-objects} = {};
 }
 
 =item hangup
@@ -409,20 +393,8 @@ Once hangup has been called, the blackboard workflow is finished.
 sub hangup {
     my ($self) = @_;
 
-    $self->_watchers({});
-    $self->_hangup(1);
-}
-
-=item watched
-
-Return a list of all keys currently being watched.
-
-=cut
-
-sub watched {
-    my ($self) = @_;
-
-    return keys %{ $self->_watchers };
+    $self->{-watchers} = {};
+    $self->{-hungup}   = 1;
 }
 
 =item clone
@@ -430,25 +402,29 @@ sub watched {
 Create a clone of this blackboard.  This will not dispatch any events, even if
 the blackboard is prepopulated.
 
+The clone is two levels, and the two blackboards will operate independently of
+one another, but any references stored as values on the blackboard will be
+shared between the two instances.
+
 =cut
 
 sub clone {
     my ($self) = @_;
 
-    my $class = ref $self || __PACKAGE__;
+    my $class = ref $self;
 
-    my $objects   = { %{ $self->{_objects}   } };
-    my $watchers  = { %{ $self->{_watchers}  } };
-    my $interests = { %{ $self->{_interests} } };
+    my $objects   = { %{ $self->{-objects}   } };
+    my $watchers  = { %{ $self->{-watchers}  } };
+    my $interests = { %{ $self->{-interests} } };
+    my $hangup    = $self->hungup;
 
     $interests->{$_} = [ @{ $interests->{$_} } ] for keys %$interests;
     $watchers->{$_}  = [ @{ $watchers->{$_}  } ] for keys %$watchers;
 
-    my $clone = $class->new(
-        _objects        => $objects,
-        _watchers       => $watchers,
-        _interests      => $interests,
-    );
+    my $clone = $class->new();
+
+    @$clone{qw( -objects -watchers -interests -hungup )} = ( $objects,
+        $watchers, $interests, $hangup );
 
     return $clone;
 }
@@ -459,11 +435,14 @@ return __PACKAGE__;
 
 =head1 BUGS
 
-None known.
+None known, but please submit them to
+https://github.com/ssmccoy/Async-Blackboard/issues if any are found, or CPAN
+RT.
 
 =head1 LICENSE
 
-Copyright © 2011, Say Media.
+Copyright (C) 2011, 2012, 2013 Say Media.
+
 Distributed under the Artistic License, 2.0.
 
 =cut
