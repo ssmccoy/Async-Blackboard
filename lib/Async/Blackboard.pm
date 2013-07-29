@@ -54,7 +54,7 @@ use warnings FATAL => "all";
 use Carp qw( confess );
 use Scalar::Util ();
 
-our $VERSION = 0.3.7;
+our $VERSION = 0.3.8;
 
 =head1 CONSTRUCTORS
 
