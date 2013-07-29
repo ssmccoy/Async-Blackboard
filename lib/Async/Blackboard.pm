@@ -54,7 +54,7 @@ use warnings FATAL => "all";
 use Carp qw( confess );
 use Scalar::Util ();
 
-our $VERSION = 0.3.8;
+our $VERSION = 0.3.9;
 
 =head1 CONSTRUCTORS
 
@@ -246,7 +246,7 @@ sub _dispatch {
 sub _watch {
     my ($self, $keys, $watcher) = @_;
 
-    return if $self->_hangup;
+    return if $self->{-hangup};
 
     if (ref $watcher eq "ARRAY") {
         $watcher = $self->_callback(@$watcher);
