@@ -213,6 +213,8 @@ sub _dispatch {
 sub _watch {
     my ($self, $keys, $watcher) = @_;
 
+    return if $self->_hangup;
+
     if (ref $watcher eq "ARRAY") {
         $watcher = $self->_callback(@$watcher);
     }
