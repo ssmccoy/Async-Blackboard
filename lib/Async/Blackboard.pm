@@ -246,7 +246,7 @@ sub _dispatch {
 sub _watch {
     my ($self, $keys, $watcher) = @_;
 
-    return if $self->{-hangup};
+    return if $self->hungup;
 
     if (ref $watcher eq "ARRAY") {
         $watcher = $self->_callback(@$watcher);
