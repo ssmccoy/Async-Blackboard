@@ -93,6 +93,25 @@ subtest "Watching for published values." => sub {
     $blackboard->watch(bar => [ $okayer, "bar" ]);
 };
 
+=item Watching not allowed after hangup.
+
+Verify that watchers are not added to the blackboard after hangup is called.
+
+=cut
+
+subtest "Watching not allowed after hangup." => sub {
+    plan tests => 1;
+
+    my $blackboard = Async::Blackboard->new();
+    my $failsub = sub { fail "Watcher after hangup." };
+
+    $blackboard->hangup;
+
+    $blackboard->watch(foo => [ $failsub ]);
+
+    my @watched_keys = $blackboard->watched;
+    ok (!@watched_keys, "No watchers");
+};
 
 =item Clone
 
