@@ -6,7 +6,8 @@ use Test::More;
 use Async::Blackboard;
 
 no warnings "redefine";
-package okayer {
+{
+    package okayer;
     use Test::More;
 
     sub new {
