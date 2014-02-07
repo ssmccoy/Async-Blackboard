@@ -17,7 +17,8 @@ A battery of tests proving there are no memory leaks.
 
 =cut
 
-package okayer {
+{
+    package okayer;
     use Test::More;
 
     sub new {
